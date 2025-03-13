@@ -1,0 +1,66 @@
+import json
+import requests
+import pandas as pd
+import time
+
+items = []
+
+
+# 根据page处理url
+def get_url(page, product_id):
+    print('爬取第' + str(page + 1) + '页')
+    page_param = '&page=' + str(page)
+    url = f'https://club.jd.com/comment/productPageComments.action?callback=fetchJSON_comment98&productId={product_id}&score=1&sortType=6&page={page}&pageSize=10&isShadowSku=0&rid=0&fold=1'
+    print('https://item.jd.com/100029933930.html#crumb-wrap:' + url)
+    return url
+
+
+if __name__ == '__main__':
+    product_id = "100121322760"  # 更新商品ID
+    for page in range(0, 2):  # 爬取前100页评论
+        header = {
+            'Accept': '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36'
+        }
+        url = get_url(page, product_id)
+        response = requests.get(url=url, headers=header)
+        response_text = response.text
+        # 去除回调函数名和多余的字符
+        start_index = response_text.find('{')
+        end_index = response_text.rfind('}')
+        response_json = response_text[start_index:end_index + 1]
+        response_data = json.loads(response_json)
+
+        data = response_data.get('comments', [])
+        time.sleep(1)  # 避免请求过快被限制
+        for comment in data:
+            content = comment.get('content', '')
+            creation_time = comment.get('creationTime', '')
+            location = comment.get('location', '空')
+            user = comment.get('nickname', '')
+            color = comment.get('productColor', '')
+            score = comment.get('score', '')
+            buy_count = comment.get('extMap', {}).get('buyCount', '空')
+
+            # 获取评论图片数量
+            image_count = len(comment.get('images', []))
+
+            # 判断是否是PLUS会员
+            is_plus_member = int(comment.get('plusAvailable', 0) in [101, 201])
+
+            # 获取商家回复
+            content2 = '商家没有回复'
+            if 'replies' in comment and len(comment['replies']) > 0 and 'content' in comment['replies'][0]:
+                content2 = comment['replies'][0]['content']
+
+            item = [user, color, buy_count, score, content, creation_time, location, content2, image_count,
+                    is_plus_member]
+            items.append(item)
+
+    df = pd.DataFrame(items,
+                      columns=['用户名', '购买颜色', '购买数量', '评价等级', '评论内容', '发布时间', '地址', '商家回复',
+                               '图片数量', '是否PLUS会员'])
+
+    df.to_excel(r'D:\学习\pycharm\小米14\2760差评3.xlsx', index=False)
+
+print("评论数据已保存到Excel文件。")
